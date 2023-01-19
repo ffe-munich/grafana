@@ -42,13 +42,11 @@ export const PanelHeader: FC<Props> = ({ panel, error, isViewing, isEditing, dat
     getBackendSrv()
       .get(`/api/user`)
       .then((res) => {
-        console.log('got the promise!');
         setLoading(false);
         setIsAdmin(res['isGrafanaAdmin']);
       })
       .catch((err) => {
         // Error handling
-        console.log('promise failed....');
         setLoading(false);
         console.log(err);
         return null;
