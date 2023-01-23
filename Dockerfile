@@ -72,7 +72,7 @@ FROM ${GO_SRC} as go-src
 FROM ${JS_SRC} as js-src
 
 # Final stage
-FROM ${BASE_IMAGE}
+FROM ${BASE_IMAGE} as develop
 
 LABEL maintainer="Grafana Labs <hello@grafana.com>"
 
@@ -159,3 +159,10 @@ COPY ${RUN_SH} /run.sh
 
 USER "$GF_UID"
 ENTRYPOINT [ "/run.sh" ]
+
+
+# Grafana configuration for production mode
+#   Write files for config and for dashboards into the image.
+#   (Development uses volumes to modify data. In production, no modification shall be allowed.)
+FROM develop as production
+COPY ../grafana-dashboards/etc/grafana /etc/grafana
