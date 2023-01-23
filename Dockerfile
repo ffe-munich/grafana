@@ -165,4 +165,3 @@ ENTRYPOINT [ "/run.sh" ]
 #   Write files for config and for dashboards into the image.
 #   (Development uses volumes to modify data. In production, no modification shall be allowed.)
 FROM develop as production
-COPY ../grafana-dashboards/etc/grafana /etc/grafana
