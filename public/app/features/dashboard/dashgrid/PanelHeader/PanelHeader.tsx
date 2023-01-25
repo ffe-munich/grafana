@@ -3,8 +3,8 @@ import React, { FC, useState, useEffect } from 'react';
 
 import { DataLink, GrafanaTheme2, PanelData } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
-import { getBackendSrv } from '@grafana/runtime';
 import { Icon, useStyles2, ClickOutsideWrapper } from '@grafana/ui';
+import config from 'app/core/config';
 import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
 import { PanelModel } from 'app/features/dashboard/state/PanelModel';
 import { getPanelLinksSupplier } from 'app/features/panel/panellinks/linkSuppliers';
@@ -35,26 +35,20 @@ export const PanelHeader: FC<Props> = ({ panel, error, isViewing, isEditing, dat
   const styles = useStyles2(panelStyles);
 
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(undefined);
+  const [isLoggedIn, setIsLoggedIn] = useState(undefined);
 
-  const checkAdmin = () => {
+  const checkLoggedIn = () => {
     setLoading(true);
-    getBackendSrv()
-      .get(`/api/user`)
-      .then((res) => {
-        setLoading(false);
-        setIsAdmin(res['isGrafanaAdmin']);
-      })
-      .catch((err) => {
-        // Error handling
-        setLoading(false);
-        console.log(err);
-        return null;
-      });
+    if (config.bootData.user.isSignedIn) {
+      setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
-    checkAdmin();
+    checkLoggedIn();
   }, []);
 
   if (loading) {
@@ -64,7 +58,7 @@ export const PanelHeader: FC<Props> = ({ panel, error, isViewing, isEditing, dat
   // das zurückgegebene Objekt unterscheidet sich nur in einer Zeile
   //      --> <div className={styles.panelDropdown} data-testid="panel-dropdown">
   // ggf. noch einen Weg finden, wie nur dieser Teil basieren auf der Fallunterscheidung geändert werden kann
-  if (isAdmin) {
+  if (isLoggedIn) {
     return (
       <>
         <PanelHeaderLoadingIndicator state={data.state} onClick={onCancelQuery} />
