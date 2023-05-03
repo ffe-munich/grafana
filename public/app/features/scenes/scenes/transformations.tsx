@@ -1,67 +1,81 @@
-import { Scene, SceneTimePicker, SceneFlexLayout, VizPanel } from '../components';
-import { EmbeddedScene } from '../components/Scene';
-import { SceneDataTransformer } from '../core/SceneDataTransformer';
-import { SceneTimeRange } from '../core/SceneTimeRange';
-import { SceneEditManager } from '../editor/SceneEditManager';
+import {
+  SceneTimePicker,
+  SceneFlexLayout,
+  VizPanel,
+  SceneDataTransformer,
+  SceneTimeRange,
+  SceneRefreshPicker,
+  SceneFlexItem,
+} from '@grafana/scenes';
+
+import { DashboardScene } from '../dashboard/DashboardScene';
 
 import { getQueryRunnerWithRandomWalkQuery } from './queries';
 
-export function getTransformationsDemo(standalone: boolean): Scene {
-  const state = {
+export function getTransformationsDemo(): DashboardScene {
+  return new DashboardScene({
     title: 'Transformations demo',
-    layout: new SceneFlexLayout({
+    body: new SceneFlexLayout({
       direction: 'row',
       children: [
-        new SceneFlexLayout({
-          direction: 'column',
-          children: [
-            new SceneFlexLayout({
-              direction: 'row',
-              children: [
-                new VizPanel({
-                  pluginId: 'timeseries',
-                  title: 'Source data (global query',
+        new SceneFlexItem({
+          body: new SceneFlexLayout({
+            direction: 'column',
+            children: [
+              new SceneFlexItem({
+                body: new SceneFlexLayout({
+                  direction: 'row',
+                  children: [
+                    new SceneFlexItem({
+                      body: new VizPanel({
+                        pluginId: 'timeseries',
+                        title: 'Source data (global query',
+                      }),
+                    }),
+                    new SceneFlexItem({
+                      body: new VizPanel({
+                        pluginId: 'stat',
+                        title: 'Transformed data',
+                        $data: new SceneDataTransformer({
+                          transformations: [
+                            {
+                              id: 'reduce',
+                              options: {
+                                reducers: ['last', 'mean'],
+                              },
+                            },
+                          ],
+                        }),
+                      }),
+                    }),
+                  ],
                 }),
-                new VizPanel({
-                  pluginId: 'stat',
-                  title: 'Transformed data',
+              }),
+              new SceneFlexItem({
+                body: new VizPanel({
                   $data: new SceneDataTransformer({
+                    $data: getQueryRunnerWithRandomWalkQuery(),
                     transformations: [
                       {
                         id: 'reduce',
                         options: {
-                          reducers: ['last', 'mean'],
+                          reducers: ['mean'],
                         },
                       },
                     ],
                   }),
-                }),
-              ],
-            }),
 
-            new VizPanel({
-              $data: getQueryRunnerWithRandomWalkQuery(undefined, {
-                transformations: [
-                  {
-                    id: 'reduce',
-                    options: {
-                      reducers: ['mean'],
-                    },
-                  },
-                ],
+                  pluginId: 'stat',
+                  title: 'Query with predefined transformations',
+                }),
               }),
-              pluginId: 'stat',
-              title: 'Query with predefined transformations',
-            }),
-          ],
+            ],
+          }),
         }),
       ],
     }),
-    $editor: new SceneEditManager({}),
     $timeRange: new SceneTimeRange(),
     $data: getQueryRunnerWithRandomWalkQuery(),
-    actions: [new SceneTimePicker({})],
-  };
-
-  return standalone ? new Scene(state) : new EmbeddedScene(state);
+    actions: [new SceneTimePicker({}), new SceneRefreshPicker({})],
+  });
 }

@@ -6,18 +6,18 @@ import selectEvent from 'react-select-event';
 import { config } from '@grafana/runtime';
 
 import { MetricStatEditor } from '..';
-import { setupMockedDataSource } from '../../__mocks__/CloudWatchDataSource';
+import { setupMockedDataSource, statisticVariable } from '../../__mocks__/CloudWatchDataSource';
 import { validMetricSearchBuilderQuery } from '../../__mocks__/queries';
 import { MetricStat } from '../../types';
 
 const originalFeatureToggleValue = config.featureToggles.cloudWatchCrossAccountQuerying;
 const ds = setupMockedDataSource({
-  variables: [],
+  variables: [statisticVariable],
 });
 
-ds.datasource.api.getNamespaces = jest.fn().mockResolvedValue([]);
-ds.datasource.api.getMetrics = jest.fn().mockResolvedValue([]);
-ds.datasource.api.getDimensionKeys = jest.fn().mockResolvedValue([]);
+ds.datasource.resources.getNamespaces = jest.fn().mockResolvedValue([]);
+ds.datasource.resources.getMetrics = jest.fn().mockResolvedValue([]);
+ds.datasource.resources.getDimensionKeys = jest.fn().mockResolvedValue([]);
 ds.datasource.getVariables = jest.fn().mockReturnValue([]);
 const metricStat: MetricStat = {
   region: 'us-east-2',
@@ -40,9 +40,8 @@ describe('MetricStatEditor', () => {
     config.featureToggles.cloudWatchCrossAccountQuerying = originalFeatureToggleValue;
   });
   describe('statistics field', () => {
-    test.each([['Average', 'p23.23', 'p34', '$statistic']])('should accept valid values', async (statistic) => {
+    test.each(['Average', 'p23.23', 'p34', '$statistic'])('should accept valid values', async (statistic) => {
       const onChange = jest.fn();
-      props.datasource.getVariables = jest.fn().mockReturnValue(['$statistic']);
 
       render(<MetricStatEditor {...props} onChange={onChange} />);
 
@@ -54,7 +53,7 @@ describe('MetricStatEditor', () => {
       expect(onChange).toHaveBeenCalledWith({ ...props.metricStat, statistic });
     });
 
-    test.each([['CustomStat', 'p23,23', '$statistic']])('should not accept invalid values', async (statistic) => {
+    test.each(['CustomStat', 'p23,23', '$someUnknownValue'])('should not accept invalid values', async (statistic) => {
       const onChange = jest.fn();
 
       render(<MetricStatEditor {...props} onChange={onChange} />);
@@ -121,8 +120,8 @@ describe('MetricStatEditor', () => {
     };
 
     beforeEach(() => {
-      propsNamespaceMetrics.datasource.api.getNamespaces = jest.fn().mockResolvedValue(namespaces);
-      propsNamespaceMetrics.datasource.api.getMetrics = jest.fn().mockResolvedValue(metrics);
+      propsNamespaceMetrics.datasource.resources.getNamespaces = jest.fn().mockResolvedValue(namespaces);
+      propsNamespaceMetrics.datasource.resources.getMetrics = jest.fn().mockResolvedValue(metrics);
       onChange.mockClear();
     });
 
@@ -146,7 +145,7 @@ describe('MetricStatEditor', () => {
     });
 
     it('should remove metricName from metricStat if it does not exist in new namespace', async () => {
-      propsNamespaceMetrics.datasource.api.getMetrics = jest.fn().mockImplementation(({ namespace, region }) => {
+      propsNamespaceMetrics.datasource.resources.getMetrics = jest.fn().mockImplementation(({ namespace, region }) => {
         let mockMetrics =
           namespace === 'n1' && region === props.metricStat.region
             ? metrics
@@ -202,8 +201,8 @@ describe('MetricStatEditor', () => {
     it('should set value to "all" when its a monitoring account and no account id is defined in the query', async () => {
       config.featureToggles.cloudWatchCrossAccountQuerying = true;
       const onChange = jest.fn();
-      props.datasource.api.isMonitoringAccount = jest.fn().mockResolvedValue(true);
-      props.datasource.api.getAccounts = jest.fn().mockResolvedValue([
+      props.datasource.resources.isMonitoringAccount = jest.fn().mockResolvedValue(true);
+      props.datasource.resources.getAccounts = jest.fn().mockResolvedValue([
         {
           value: '123456789',
           label: 'test-account1',
@@ -231,8 +230,8 @@ describe('MetricStatEditor', () => {
     it('should unset value when no accounts were found and an account id is defined in the query', async () => {
       config.featureToggles.cloudWatchCrossAccountQuerying = true;
       const onChange = jest.fn();
-      props.datasource.api.isMonitoringAccount = jest.fn().mockResolvedValue(false);
-      props.datasource.api.getAccounts = jest.fn().mockResolvedValue([]);
+      props.datasource.resources.isMonitoringAccount = jest.fn().mockResolvedValue(false);
+      props.datasource.resources.getAccounts = jest.fn().mockResolvedValue([]);
       await act(async () => {
         render(
           <MetricStatEditor

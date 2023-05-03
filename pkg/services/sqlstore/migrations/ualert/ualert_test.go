@@ -8,10 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/util"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/util"
 )
 
 var MigTitle = migTitle
@@ -64,14 +65,14 @@ func Test_validateAlertmanagerConfig(t *testing.T) {
 			name: "when a slack receiver does not have a valid URL - it should error",
 			receivers: []*PostableGrafanaReceiver{
 				{
-					UID:            util.GenerateShortUID(),
+					UID:            "test-uid",
 					Name:           "SlackWithBadURL",
 					Type:           "slack",
 					Settings:       simplejson.NewFromAny(map[string]interface{}{}),
 					SecureSettings: map[string]string{"url": invalidUri},
 				},
 			},
-			err: fmt.Errorf("failed to validate receiver \"SlackWithBadURL\" of type \"slack\": invalid URL %q", invalidUri),
+			err: fmt.Errorf("failed to validate integration \"SlackWithBadURL\" (UID test-uid) of type \"slack\": invalid URL %q", invalidUri),
 		},
 		{
 			name: "when a slack receiver has an invalid recipient - it should not error",
@@ -102,11 +103,10 @@ func Test_validateAlertmanagerConfig(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			mg := newTestMigration(t)
-			orgID := int64(1)
 
 			config := configFromReceivers(t, tt.receivers)
 			require.NoError(t, config.EncryptSecureSettings()) // make sure we encrypt the settings
-			err := mg.validateAlertmanagerConfig(orgID, config)
+			err := mg.validateAlertmanagerConfig(config)
 			if tt.err != nil {
 				require.Error(t, err)
 				require.EqualError(t, err, tt.err.Error())
@@ -171,4 +171,24 @@ func Test_getAlertFolderNameFromDashboard(t *testing.T) {
 		require.Len(t, folder, MaxFolderName)
 		require.Contains(t, folder, dash.Uid)
 	})
+}
+
+func Test_shortUIDCaseInsensitiveConflicts(t *testing.T) {
+	s := uidSet{
+		set:             make(map[string]struct{}),
+		caseInsensitive: true,
+	}
+
+	// 10000 uids seems to be enough to cause a collision in almost every run if using util.GenerateShortUID directly.
+	for i := 0; i < 10000; i++ {
+		_, _ = s.generateUid()
+	}
+
+	// check if any are case-insensitive duplicates.
+	deduped := make(map[string]struct{})
+	for k := range s.set {
+		deduped[strings.ToLower(k)] = struct{}{}
+	}
+
+	require.Equal(t, len(s.set), len(deduped))
 }

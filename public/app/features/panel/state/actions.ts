@@ -1,6 +1,5 @@
-import { DataTransformerConfig, FieldConfigSource } from '@grafana/data';
+import { DataTransformerConfig, FieldConfigSource, getPanelOptionsWithDefaults } from '@grafana/data';
 import { PanelModel } from 'app/features/dashboard/state/PanelModel';
-import { getPanelOptionsWithDefaults } from 'app/features/dashboard/state/getPanelOptionsWithDefaults';
 import { getLibraryPanel } from 'app/features/library-panels/state/api';
 import { LibraryElementDTO } from 'app/features/library-panels/types';
 import { getPanelPluginNotFound } from 'app/features/panel/components/PanelPluginError';
@@ -57,10 +56,11 @@ export function changePanelPlugin({
   pluginId,
   options,
   fieldConfig,
+  transformations,
 }: ChangePanelPluginAndOptionsArgs): ThunkResult<void> {
   return async (dispatch, getStore) => {
     // ignore action is no change
-    if (panel.type === pluginId && !options && !fieldConfig) {
+    if (panel.type === pluginId && !options && !fieldConfig && !transformations) {
       return;
     }
 
@@ -75,7 +75,7 @@ export function changePanelPlugin({
       panel.changePlugin(plugin);
     }
 
-    if (options || fieldConfig) {
+    if (options || fieldConfig || transformations) {
       const newOptions = getPanelOptionsWithDefaults({
         plugin,
         currentOptions: options || panel.options,
@@ -85,6 +85,7 @@ export function changePanelPlugin({
 
       panel.options = newOptions.options;
       panel.fieldConfig = newOptions.fieldConfig;
+      panel.transformations = transformations || panel.transformations;
       panel.configRev++;
     }
 

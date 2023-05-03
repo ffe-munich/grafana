@@ -7,7 +7,7 @@ on:
       - 'type/epic'
       
 env:
-  GITHUB_TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GH_BOT_PROJECTS_ACCESS_TOKEN }}
   ORGANIZATION: ${{ github.repository_owner }}
   REPO: ${{ github.event.repository.name }}
   PARENT_PROJECT: 304
@@ -19,6 +19,7 @@ concurrency:
   group: issue-add-to-parent-project-${{ github.event.number }}
 jobs:
   main:
+    if: contains(github.event.issue.labels.*.name, 'type/epic')
     runs-on: ubuntu-latest
     steps:
       - name: Check if issue is in child or parent projects

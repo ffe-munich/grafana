@@ -11,7 +11,7 @@ import {
   REF_ID_STARTER_LOG_VOLUME,
 } from './datasource';
 import pluginJson from './plugin.json';
-import { getNormalizedLokiQuery, isLogsQuery, parseToNodeNamesArray } from './queryUtils';
+import { getNormalizedLokiQuery, isLogsQuery, obfuscate, parseToNodeNamesArray } from './queryUtils';
 import { LokiQuery, LokiQueryType } from './types';
 
 type LokiOnDashboardLoadedTrackingEvent = {
@@ -113,7 +113,7 @@ const isQueryWithChangedResolution = (query: LokiQuery): boolean => {
 };
 
 const isQueryWithChangedLineLimit = (query: LokiQuery): boolean => {
-  return query.maxLines !== null || query.maxLines !== undefined;
+  return query.maxLines !== null && query.maxLines !== undefined;
 };
 
 const isQueryWithChangedLegend = (query: LokiQuery): boolean => {
@@ -144,6 +144,11 @@ export function trackQuery(
     return;
   }
 
+  // TODO: We need to re-think this for split queries
+  if (config.featureToggles.lokiQuerySplitting) {
+    return;
+  }
+
   let totalBytes = 0;
   for (const frame of response.data) {
     const byteKey = frame.meta?.custom?.lokiQueryStatKey;
@@ -167,10 +172,12 @@ export function trackQuery(
       legend: query.legendFormat,
       line_limit: query.maxLines,
       parsed_query: parseToNodeNamesArray(query.expr).join(','),
+      obfuscated_query: obfuscate(query.expr),
       query_type: isLogsQuery(query.expr) ? 'logs' : 'metric',
       query_vector_type: query.queryType,
       resolution: query.resolution,
-      simultaneously_sent_query_count: queries.length,
+      simultaneously_executed_query_count: queries.filter((query) => !query.hide).length,
+      simultaneously_hidden_query_count: queries.filter((query) => query.hide).length,
       time_range_from: request?.range?.from?.toISOString(),
       time_range_to: request?.range?.to?.toISOString(),
       time_taken: Date.now() - startTime.getTime(),

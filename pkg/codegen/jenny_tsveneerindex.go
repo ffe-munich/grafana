@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/codejen"
 	"github.com/grafana/cuetsy/ts"
 	"github.com/grafana/cuetsy/ts/ast"
-	"github.com/grafana/grafana/pkg/kindsys"
+	"github.com/grafana/kindsys"
 	"github.com/grafana/thema"
 	"github.com/grafana/thema/encoding/typescript"
 )
@@ -39,24 +39,21 @@ func (gen *genTSVeneerIndex) JennyName() string {
 	return "TSVeneerIndexJenny"
 }
 
-func (gen *genTSVeneerIndex) Generate(decls ...*DeclForGen) (*codejen.File, error) {
+func (gen *genTSVeneerIndex) Generate(kinds ...kindsys.Kind) (*codejen.File, error) {
 	tsf := new(ast.File)
-	for _, decl := range decls {
-		if decl.IsRaw() {
-			continue
-		}
-
-		sch := decl.Lineage().Latest()
+	for _, def := range kinds {
+		sch := def.Lineage().Latest()
 		f, err := typescript.GenerateTypes(sch, &typescript.TypeConfig{
-			RootName: decl.Properties.Common().Name,
-			Group:    decl.Properties.Common().LineageIsGroup,
+			RootName: def.Props().Common().Name,
+			Group:    def.Props().Common().LineageIsGroup,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", decl.Properties.Common().Name, err)
+			return nil, fmt.Errorf("%s: %w", def.Props().Common().Name, err)
 		}
-		elems, err := gen.extractTSIndexVeneerElements(decl, f)
+		renameSpecNode(def.Props().Common().Name, f)
+		elems, err := gen.extractTSIndexVeneerElements(def, f)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", decl.Properties.Common().Name, err)
+			return nil, fmt.Errorf("%s: %w", def.Props().Common().Name, err)
 		}
 		tsf.Nodes = append(tsf.Nodes, elems...)
 	}
@@ -64,9 +61,9 @@ func (gen *genTSVeneerIndex) Generate(decls ...*DeclForGen) (*codejen.File, erro
 	return codejen.NewFile(filepath.Join(gen.dir, "index.gen.ts"), []byte(tsf.String()), gen), nil
 }
 
-func (gen *genTSVeneerIndex) extractTSIndexVeneerElements(decl *DeclForGen, tf *ast.File) ([]ast.Decl, error) {
-	lin := decl.Lineage()
-	comm := decl.Properties.Common()
+func (gen *genTSVeneerIndex) extractTSIndexVeneerElements(def kindsys.Kind, tf *ast.File) ([]ast.Decl, error) {
+	lin := def.Lineage()
+	comm := def.Props().Common()
 
 	// Check the root, then walk the tree
 	rootv := lin.Latest().Underlying()
@@ -79,13 +76,13 @@ func (gen *genTSVeneerIndex) extractTSIndexVeneerElements(decl *DeclForGen, tf *
 		sels := p.Selectors()
 		switch len(sels) {
 		case 0:
-			name = comm.Name
-			fallthrough
+			return true
+
 		case 1:
 			// Only deal with subpaths that are definitions, for now
 			// TODO incorporate smarts about grouped lineages here
 			if name == "" {
-				if !sels[0].IsDefinition() {
+				if !(sels[0].IsDefinition() || sels[0].String() == "spec") {
 					return false
 				}
 				// It might seem to make sense that we'd strip replaceout the leading # here for
@@ -94,7 +91,11 @@ func (gen *genTSVeneerIndex) extractTSIndexVeneerElements(decl *DeclForGen, tf *
 				name = sels[0].String()
 			}
 
-			// Search the generated TS AST for the type and default decl nodes
+			if name == "spec" {
+				name = comm.Name
+			}
+
+			// Search the generated TS AST for the type and default def nodes
 			pair := findDeclNode(name, tf)
 			if pair.T == nil {
 				// No generated type for this item, skip it
@@ -143,7 +144,7 @@ func (gen *genTSVeneerIndex) extractTSIndexVeneerElements(decl *DeclForGen, tf *
 	}
 
 	vpath := fmt.Sprintf("v%v", thema.LatestVersion(lin)[0])
-	if decl.Properties.Common().Maturity.Less(kindsys.MaturityStable) {
+	if def.Props().Common().Maturity.Less(kindsys.MaturityStable) {
 		vpath = "x"
 	}
 
@@ -194,7 +195,7 @@ func (gen *genTSVeneerIndex) extractTSIndexVeneerElements(decl *DeclForGen, tf *
 		})
 	}
 
-	// TODO emit a decl in the index.gen.ts that ensures any custom veneer types are "compatible" with current version raw types
+	// TODO emit a def in the index.gen.ts that ensures any custom veneer types are "compatible" with current version raw types
 	return ret, nil
 }
 
@@ -209,13 +210,13 @@ type tsVeneerAttr struct {
 
 func findDeclNode(name string, tf *ast.File) declPair {
 	var p declPair
-	for _, decl := range tf.Nodes {
+	for _, def := range tf.Nodes {
 		// Peer through export keywords
-		if ex, is := decl.(ast.ExportKeyword); is {
-			decl = ex.Decl
+		if ex, is := def.(ast.ExportKeyword); is {
+			def = ex.Decl
 		}
 
-		switch x := decl.(type) {
+		switch x := def.(type) {
 		case ast.TypeDecl:
 			if x.Name.Name == name {
 				p.T = &x.Name

@@ -10,11 +10,12 @@ import {
   PanelData,
   standardEditorsRegistry,
   standardFieldConfigEditorRegistry,
+  TimeRange,
   toDataFrame,
 } from '@grafana/data';
+import { getPanelPlugin } from '@grafana/data/test/__mocks__/pluginMocks';
 import { selectors } from '@grafana/e2e-selectors';
 import { getAllOptionEditors, getAllStandardFieldConfigs } from 'app/core/components/OptionsUI/registry';
-import { getPanelPlugin } from 'app/features/plugins/__mocks__/pluginMocks';
 
 import { PanelModel } from '../../state';
 import { createDashboardModelFixture } from '../../state/__fixtures__/dashboardFixtures';
@@ -42,7 +43,7 @@ class OptionsPaneOptionsTestScenario {
   panelData: PanelData = {
     series: [],
     state: LoadingState.Done,
-    timeRange: {} as any,
+    timeRange: {} as TimeRange,
   };
 
   plugin = getPanelPlugin({

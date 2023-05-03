@@ -1,12 +1,11 @@
 import React from 'react';
 import { ColumnInstance, HeaderGroup } from 'react-table';
 
+import { fieldReducers, ReducerID } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 
-import { useStyles2 } from '../../themes';
-
 import { EmptyCell, FooterCell } from './FooterCell';
-import { getTableStyles, TableStyles } from './styles';
+import { TableStyles } from './styles';
 import { FooterItem } from './types';
 
 export interface FooterRowProps {
@@ -14,12 +13,12 @@ export interface FooterRowProps {
   footerGroups: HeaderGroup[];
   footerValues: FooterItem[];
   isPaginationVisible: boolean;
+  tableStyles: TableStyles;
 }
 
-export const FooterRow = (props: FooterRowProps) => {
-  const { totalColumnsWidth, footerGroups, isPaginationVisible } = props;
+export function FooterRow(props: FooterRowProps) {
+  const { totalColumnsWidth, footerGroups, isPaginationVisible, tableStyles } = props;
   const e2eSelectorsTable = selectors.components.Panels.Visualization.Table;
-  const tableStyles = useStyles2(getTableStyles);
 
   return (
     <div
@@ -39,7 +38,7 @@ export const FooterRow = (props: FooterRowProps) => {
       })}
     </div>
   );
-};
+}
 
 function renderFooterCell(column: ColumnInstance, tableStyles: TableStyles) {
   const footerProps = column.getHeaderProps();
@@ -65,12 +64,13 @@ export function getFooterValue(index: number, footerValues?: FooterItem[], isCou
   }
 
   if (isCountRowsSet) {
-    const count = footerValues[index];
-    if (typeof count !== 'string') {
+    if (footerValues[index] === undefined) {
       return EmptyCell;
     }
 
-    return FooterCell({ value: [{ Count: count }] });
+    const key = fieldReducers.get(ReducerID.count).name;
+
+    return FooterCell({ value: [{ [key]: String(footerValues[index]) }] });
   }
 
   return FooterCell({ value: footerValues[index] });

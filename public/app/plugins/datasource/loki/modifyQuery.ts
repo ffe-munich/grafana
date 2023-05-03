@@ -22,7 +22,7 @@ import { unescapeLabelValue } from './languageUtils';
 import { LokiQueryModeller } from './querybuilder/LokiQueryModeller';
 import { buildVisualQueryFromString } from './querybuilder/parsing';
 
-type Position = { from: number; to: number };
+export type Position = { from: number; to: number };
 /**
  * Adds label filter to existing query. Useful for query modification for example for ad hoc filters.
  *
@@ -128,10 +128,7 @@ export function removeCommentsFromQuery(query: string): string {
   let prev = 0;
 
   for (let lineCommentPosition of lineCommentPositions) {
-    const beforeComment = query.substring(prev, lineCommentPosition.from);
-    const afterComment = query.substring(lineCommentPosition.to);
-
-    newQuery += beforeComment + afterComment;
+    newQuery = newQuery + query.substring(prev, lineCommentPosition.from);
     prev = lineCommentPosition.to;
   }
   return newQuery;
@@ -142,7 +139,7 @@ export function removeCommentsFromQuery(query: string): string {
  * selector.
  * @param query
  */
-function getStreamSelectorPositions(query: string): Position[] {
+export function getStreamSelectorPositions(query: string): Position[] {
   const tree = parser.parse(query);
   const positions: Position[] = [];
   tree.iterate({
@@ -267,7 +264,7 @@ function getLogQueryPositions(query: string): Position[] {
   return positions;
 }
 
-function toLabelFilter(key: string, value: string, operator: string): QueryBuilderLabelFilter {
+export function toLabelFilter(key: string, value: string, operator: string): QueryBuilderLabelFilter {
   // We need to make sure that we convert the value back to string because it may be a number
   return { label: key, op: operator, value };
 }
@@ -314,7 +311,7 @@ function addFilterToStreamSelector(
  * @param positionsToAddAfter
  * @param filter
  */
-function addFilterAsLabelFilter(
+export function addFilterAsLabelFilter(
   query: string,
   positionsToAddAfter: Position[],
   filter: QueryBuilderLabelFilter
@@ -330,9 +327,16 @@ function addFilterAsLabelFilter(
     const start = query.substring(prev, match.to);
     const end = isLast ? query.substring(match.to) : '';
 
-    // we now unescape all escaped values again, because we are using backticks which can handle those cases.
-    // we also don't care about the operator here, because we need to unescape for both, regex and equal.
-    const labelFilter = ` | ${filter.label}${filter.op}\`${unescapeLabelValue(filter.value)}\``;
+    let labelFilter = '';
+    // For < and >, if the value is number, we don't add quotes around it and use it as number
+    if (!Number.isNaN(Number(filter.value)) && (filter.op === '<' || filter.op === '>')) {
+      labelFilter = ` | ${filter.label}${filter.op}${Number(filter.value)}`;
+    } else {
+      // we now unescape all escaped values again, because we are using backticks which can handle those cases.
+      // we also don't care about the operator here, because we need to unescape for both, regex and equal.
+      labelFilter = ` | ${filter.label}${filter.op}\`${unescapeLabelValue(filter.value)}\``;
+    }
+
     newQuery += start + labelFilter + end;
     prev = match.to;
   }
@@ -393,6 +397,14 @@ function addLabelFormat(
   return newQuery;
 }
 
+export function addLineFilter(query: string): string {
+  const streamSelectorPositions = getStreamSelectorPositions(query);
+  const streamSelectorEnd = streamSelectorPositions[0].to;
+
+  const newQueryExpr = query.slice(0, streamSelectorEnd) + ' |= ``' + query.slice(streamSelectorEnd);
+  return newQueryExpr;
+}
+
 function getLineCommentPositions(query: string): Position[] {
   const tree = parser.parse(query);
   const positions: Position[] = [];
@@ -420,7 +432,7 @@ function labelExists(labels: QueryBuilderLabelFilter[], filter: QueryBuilderLabe
  * Return the last position based on "to" property
  * @param positions
  */
-function findLastPosition(positions: Position[]): Position {
+export function findLastPosition(positions: Position[]): Position {
   return positions.reduce((prev, current) => (prev.to > current.to ? prev : current));
 }
 

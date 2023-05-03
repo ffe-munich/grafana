@@ -42,6 +42,7 @@ describe('situation', () => {
     assertSituation('{level="info"} ^', {
       type: 'AFTER_SELECTOR',
       afterPipe: false,
+      hasSpace: true,
       logQuery: '{level="info"}',
     });
 
@@ -54,18 +55,21 @@ describe('situation', () => {
     assertSituation('{level="info"} | json ^', {
       type: 'AFTER_SELECTOR',
       afterPipe: false,
+      hasSpace: true,
       logQuery: '{level="info"} | json',
     });
 
-    assertSituation('{level="info"} | json | ^', {
+    assertSituation('{level="info"} | json |^', {
       type: 'AFTER_SELECTOR',
       afterPipe: true,
+      hasSpace: false,
       logQuery: '{level="info"} | json |',
     });
 
     assertSituation('count_over_time({level="info"}^[10s])', {
       type: 'AFTER_SELECTOR',
       afterPipe: false,
+      hasSpace: false,
       logQuery: '{level="info"}',
     });
 
@@ -76,18 +80,21 @@ describe('situation', () => {
     assertSituation('count_over_time({level="info"}^)', {
       type: 'AFTER_SELECTOR',
       afterPipe: false,
+      hasSpace: false,
       logQuery: '{level="info"}',
     });
 
     assertSituation('{level="info"} |= "a" | logfmt ^', {
       type: 'AFTER_SELECTOR',
       afterPipe: false,
+      hasSpace: true,
       logQuery: '{level="info"} |= "a" | logfmt',
     });
 
     assertSituation('sum(count_over_time({place="luna"} | logfmt |^)) by (place)', {
       type: 'AFTER_SELECTOR',
       afterPipe: true,
+      hasSpace: false,
       logQuery: '{place="luna"}| logfmt |',
     });
   });
@@ -107,6 +114,13 @@ describe('situation', () => {
     assertSituation('sum({^})', {
       type: 'IN_LABEL_SELECTOR_NO_LABEL_NAME',
       otherLabels: [],
+    });
+
+    ['sum({label="value",^})', '{label="value",^}', '{label="value", ^}'].forEach((query) => {
+      assertSituation(query, {
+        type: 'IN_LABEL_SELECTOR_NO_LABEL_NAME',
+        otherLabels: [{ name: 'label', value: 'value', op: '=' }],
+      });
     });
   });
 
@@ -146,6 +160,12 @@ describe('situation', () => {
     assertSituation('{one=`val\\"1`,^}', {
       type: 'IN_LABEL_SELECTOR_NO_LABEL_NAME',
       otherLabels: [{ name: 'one', value: 'val\\"1', op: '=' }],
+    });
+
+    // double-quoted label-values with escape and multiple quotes
+    assertSituation('{one="val\\"1\\"",^}', {
+      type: 'IN_LABEL_SELECTOR_NO_LABEL_NAME',
+      otherLabels: [{ name: 'one', value: 'val"1"', op: '=' }],
     });
   });
 

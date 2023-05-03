@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/resourcegraph"
+	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/loganalytics"
 	azTime "github.com/grafana/grafana/pkg/tsdb/azuremonitor/time"
 	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/types"
 )
@@ -110,20 +110,32 @@ func (e *AzureMonitorDatasource) buildQueries(logger log.Logger, queries []backe
 		filterInBody := true
 		if azJSONModel.Region != "" {
 			params.Add("region", azJSONModel.Region)
-		} else {
-			// Deprecated, if no region is specified, only one resource group and name is supported
+		}
+		resourceIDs := []string{}
+		if hasOne, resourceGroup, resourceName := hasOneResource(queryJSONModel); hasOne {
 			ub := urlBuilder{
 				ResourceURI: azJSONModel.ResourceURI,
 				// Alternative, used to reconstruct resource URI if it's not present
 				DefaultSubscription: dsInfo.Settings.SubscriptionId,
 				Subscription:        queryJSONModel.Subscription,
-				ResourceGroup:       azJSONModel.ResourceGroup,
+				ResourceGroup:       resourceGroup,
 				MetricNamespace:     azJSONModel.MetricNamespace,
-				ResourceName:        azJSONModel.ResourceName,
+				ResourceName:        resourceName,
 			}
 			azureURL = ub.BuildMetricsURL()
 			// POST requests are only supported at the subscription level
 			filterInBody = false
+		} else {
+			for _, r := range azJSONModel.Resources {
+				ub := urlBuilder{
+					DefaultSubscription: dsInfo.Settings.SubscriptionId,
+					Subscription:        queryJSONModel.Subscription,
+					ResourceGroup:       r.ResourceGroup,
+					MetricNamespace:     azJSONModel.MetricNamespace,
+					ResourceName:        r.ResourceName,
+				}
+				resourceIDs = append(resourceIDs, fmt.Sprintf("Microsoft.ResourceId eq '%s'", ub.buildResourceURI()))
+			}
 		}
 
 		// old model
@@ -147,17 +159,6 @@ func (e *AzureMonitorDatasource) buildQueries(logger log.Logger, queries []backe
 			}
 		}
 
-		resourceIDs := []string{}
-		for _, r := range azJSONModel.Resources {
-			ub := urlBuilder{
-				DefaultSubscription: dsInfo.Settings.SubscriptionId,
-				Subscription:        queryJSONModel.Subscription,
-				ResourceGroup:       r.ResourceGroup,
-				MetricNamespace:     azJSONModel.MetricNamespace,
-				ResourceName:        r.ResourceName,
-			}
-			resourceIDs = append(resourceIDs, fmt.Sprintf("Microsoft.ResourceId eq '%s'", ub.buildResourceURI()))
-		}
 		filterString := strings.Join(resourceIDs, " or ")
 
 		if dimSB.String() != "" {
@@ -245,7 +246,7 @@ func (e *AzureMonitorDatasource) executeQuery(ctx context.Context, logger log.Lo
 		return dataResponse
 	}
 
-	azurePortalUrl, err := resourcegraph.GetAzurePortalUrl(dsInfo.Cloud)
+	azurePortalUrl, err := loganalytics.GetAzurePortalUrl(dsInfo.Cloud)
 	if err != nil {
 		dataResponse.Error = err
 		return dataResponse
@@ -279,7 +280,7 @@ func (e *AzureMonitorDatasource) unmarshalResponse(logger log.Logger, res *http.
 
 	if res.StatusCode/100 != 2 {
 		logger.Debug("Request failed", "status", res.Status, "body", string(body))
-		return types.AzureMonitorResponse{}, fmt.Errorf("request failed, status: %s", res.Status)
+		return types.AzureMonitorResponse{}, fmt.Errorf("request failed, status: %s, error: %s", res.Status, string(body))
 	}
 
 	var data types.AzureMonitorResponse
@@ -316,7 +317,13 @@ func (e *AzureMonitorDatasource) parseResponse(amr types.AzureMonitorResponse, q
 				Unit: toGrafanaUnit(amr.Value[0].Unit),
 			})
 		}
-		resourceID := labels["microsoft.resourceid"]
+
+		resourceIdLabel := "microsoft.resourceid"
+		resourceID, ok := labels[resourceIdLabel]
+		if !ok {
+			resourceIdLabel = "Microsoft.ResourceId"
+			resourceID = labels[resourceIdLabel]
+		}
 		resourceIDSlice := strings.Split(resourceID, "/")
 		resourceName := ""
 		if len(resourceIDSlice) > 1 {
@@ -327,6 +334,11 @@ func (e *AzureMonitorDatasource) parseResponse(amr types.AzureMonitorResponse, q
 			resourceName = extractResourceNameFromMetricsURL(query.URL)
 			resourceID = extractResourceIDFromMetricsURL(query.URL)
 		}
+		if _, ok := labels[resourceIdLabel]; ok {
+			delete(labels, resourceIdLabel)
+			labels["resourceName"] = resourceName
+		}
+
 		if query.Alias != "" {
 			displayName := formatAzureMonitorLegendKey(query.Alias, resourceName,
 				amr.Value[0].Name.LocalizedValue, "", "", amr.Namespace, amr.Value[0].ID, labels)
@@ -367,7 +379,7 @@ func (e *AzureMonitorDatasource) parseResponse(amr types.AzureMonitorResponse, q
 			return nil, err
 		}
 
-		frameWithLink := resourcegraph.AddConfigLinks(*frame, queryUrl)
+		frameWithLink := loganalytics.AddConfigLinks(*frame, queryUrl, nil)
 		frames = append(frames, &frameWithLink)
 	}
 
@@ -594,4 +606,19 @@ func extractResourceNameFromMetricsURL(url string) string {
 
 func extractResourceIDFromMetricsURL(url string) string {
 	return strings.Split(url, "/providers/microsoft.insights/metrics")[0]
+}
+
+func hasOneResource(query types.AzureMonitorJSONQuery) (bool, string, string) {
+	azJSONModel := query.AzureMonitor
+	if len(azJSONModel.Resources) > 1 {
+		return false, "", ""
+	}
+	if len(azJSONModel.Resources) == 1 {
+		return true, azJSONModel.Resources[0].ResourceGroup, azJSONModel.Resources[0].ResourceName
+	}
+	if azJSONModel.ResourceGroup != "" || azJSONModel.ResourceName != "" {
+		// Deprecated, Resources should be used instead
+		return true, azJSONModel.ResourceGroup, azJSONModel.ResourceName
+	}
+	return false, "", ""
 }

@@ -36,8 +36,7 @@ func (e *cloudWatchExecutor) executeTimeSeriesQuery(ctx context.Context, logger 
 		return nil, err
 	}
 
-	requestQueries, err := models.ParseMetricDataQueries(req.Queries, startTime, endTime, instance.Settings.Region,
-		e.features.IsEnabled(featuremgmt.FlagCloudWatchDynamicLabels),
+	requestQueries, err := models.ParseMetricDataQueries(req.Queries, startTime, endTime, instance.Settings.Region, logger,
 		e.features.IsEnabled(featuremgmt.FlagCloudWatchCrossAccountQuerying))
 	if err != nil {
 		return nil, err

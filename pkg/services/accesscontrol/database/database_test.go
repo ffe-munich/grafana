@@ -10,12 +10,13 @@ import (
 
 	"github.com/grafana/grafana/pkg/infra/db"
 	"github.com/grafana/grafana/pkg/infra/localcache"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	rs "github.com/grafana/grafana/pkg/services/accesscontrol/resourcepermissions"
+	"github.com/grafana/grafana/pkg/services/dashboards"
 	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/services/org/orgimpl"
 	"github.com/grafana/grafana/pkg/services/quota/quotatest"
+	"github.com/grafana/grafana/pkg/services/supportbundles/supportbundlestest"
 	"github.com/grafana/grafana/pkg/services/team"
 	"github.com/grafana/grafana/pkg/services/team/teamimpl"
 	"github.com/grafana/grafana/pkg/services/user"
@@ -89,7 +90,7 @@ func TestAccessControlStore_GetUserPermissions(t *testing.T) {
 			}
 
 			for _, id := range tt.teamPermissions {
-				_, err := permissionStore.SetTeamResourcePermission(context.Background(), tt.orgID, team.Id, rs.SetResourcePermissionCommand{
+				_, err := permissionStore.SetTeamResourcePermission(context.Background(), tt.orgID, team.ID, rs.SetResourcePermissionCommand{
 					Actions:    []string{"dashboards:read"},
 					Resource:   "dashboards",
 					ResourceID: id,
@@ -117,7 +118,7 @@ func TestAccessControlStore_GetUserPermissions(t *testing.T) {
 			}
 
 			userID := user.ID
-			teamIDs := []int64{team.Id}
+			teamIDs := []int64{team.ID}
 			if tt.anonymousUser {
 				userID = 0
 				teamIDs = []int64{}
@@ -217,7 +218,7 @@ func TestAccessControlStore_DeleteUserPermissions(t *testing.T) {
 	})
 }
 
-func createUserAndTeam(t *testing.T, userSrv user.Service, teamSvc team.Service, orgID int64) (*user.User, models.Team) {
+func createUserAndTeam(t *testing.T, userSrv user.Service, teamSvc team.Service, orgID int64) (*user.User, team.Team) {
 	t.Helper()
 
 	user, err := userSrv.Create(context.Background(), &user.CreateUserCommand{
@@ -229,7 +230,7 @@ func createUserAndTeam(t *testing.T, userSrv user.Service, teamSvc team.Service,
 	team, err := teamSvc.CreateTeam("team", "", orgID)
 	require.NoError(t, err)
 
-	err = teamSvc.AddTeamMember(user.ID, orgID, team.Id, false, models.PERMISSION_VIEW)
+	err = teamSvc.AddTeamMember(user.ID, orgID, team.ID, false, dashboards.PERMISSION_VIEW)
 	require.NoError(t, err)
 
 	return user, team
@@ -262,6 +263,7 @@ func createUsersAndTeams(t *testing.T, svcs helperServices, orgID int64, users [
 			IsAdmin: users[i].isAdmin,
 		})
 		require.NoError(t, err)
+		require.Equal(t, orgID, user.OrgID)
 
 		// User is not member of the org
 		if users[i].orgRole == "" {
@@ -276,14 +278,14 @@ func createUsersAndTeams(t *testing.T, svcs helperServices, orgID int64, users [
 		team, err := svcs.teamSvc.CreateTeam(fmt.Sprintf("team%v", i+1), "", orgID)
 		require.NoError(t, err)
 
-		err = svcs.teamSvc.AddTeamMember(user.ID, orgID, team.Id, false, models.PERMISSION_VIEW)
+		err = svcs.teamSvc.AddTeamMember(user.ID, orgID, team.ID, false, dashboards.PERMISSION_VIEW)
 		require.NoError(t, err)
 
 		err = svcs.orgSvc.UpdateOrgUser(context.Background(),
 			&org.UpdateOrgUserCommand{Role: users[i].orgRole, OrgID: orgID, UserID: user.ID})
 		require.NoError(t, err)
 
-		res = append(res, dbUser{userID: user.ID, teamID: team.Id})
+		res = append(res, dbUser{userID: user.ID, teamID: team.ID})
 	}
 
 	return res
@@ -291,12 +293,20 @@ func createUsersAndTeams(t *testing.T, svcs helperServices, orgID int64, users [
 
 func setupTestEnv(t testing.TB) (*AccessControlStore, rs.Store, user.Service, team.Service, org.Service) {
 	sql, cfg := db.InitTestDBwithCfg(t)
+	cfg.AutoAssignOrg = true
+	cfg.AutoAssignOrgRole = "Viewer"
+	cfg.AutoAssignOrgId = 1
 	acstore := ProvideService(sql)
 	permissionStore := rs.NewStore(sql)
 	teamService := teamimpl.ProvideService(sql, cfg)
 	orgService, err := orgimpl.ProvideService(sql, cfg, quotatest.New(false, nil))
 	require.NoError(t, err)
-	userService, err := userimpl.ProvideService(sql, orgService, cfg, teamService, localcache.ProvideService(), quotatest.New(false, nil))
+
+	orgID, err := orgService.GetOrCreate(context.Background(), "test")
+	require.Equal(t, int64(1), orgID)
+	require.NoError(t, err)
+
+	userService, err := userimpl.ProvideService(sql, orgService, cfg, teamService, localcache.ProvideService(), quotatest.New(false, nil), supportbundlestest.NewFakeBundleService())
 	require.NoError(t, err)
 	return acstore, permissionStore, userService, teamService, orgService
 }

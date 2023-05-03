@@ -3,10 +3,12 @@ package codegen
 import (
 	"bytes"
 	"embed"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/grafana/codejen"
+	"github.com/grafana/kindsys"
 )
 
 // All the parsed templates in the tmpl subdirectory
@@ -14,7 +16,8 @@ var tmpls *template.Template
 
 func init() {
 	base := template.New("codegen").Funcs(template.FuncMap{
-		"now": time.Now,
+		"now":     time.Now,
+		"ToLower": strings.ToLower,
 	})
 	tmpls = template.Must(base.ParseFS(tmplFS, "tmpl/*.tmpl"))
 }
@@ -35,16 +38,20 @@ type (
 		MainGenerator string
 		Using         []codejen.NamedJenny
 		From          string
+		Leader        string
 	}
 	tvars_kind_registry struct {
-		// Header tvars_autogen_header
-		NumRaw, NumStructured int
-		PackageName           string
-		KindPackagePrefix     string
-		Kinds                 []*DeclForGen
+		PackageName       string
+		KindPackagePrefix string
+		Kinds             []kindsys.Core
 	}
 	tvars_coremodel_imports struct {
 		PackageName string
+	}
+	tvars_resource struct {
+		PackageName      string
+		KindName         string
+		SubresourceNames []string
 	}
 )
 

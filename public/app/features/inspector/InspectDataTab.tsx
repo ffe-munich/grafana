@@ -9,7 +9,6 @@ import {
   CSVConfig,
   DataFrame,
   DataTransformerID,
-  MutableDataFrame,
   SelectableValue,
   TimeZone,
   transformDataFrame,
@@ -22,13 +21,10 @@ import { t, Trans } from 'app/core/internationalization';
 import { dataFrameToLogsModel } from 'app/core/logsModel';
 import { PanelModel } from 'app/features/dashboard/state';
 import { GetDataOptions } from 'app/features/query/state/PanelQueryRunner';
-import { transformToJaeger } from 'app/plugins/datasource/jaeger/responseTransform';
-import { transformToOTLP } from 'app/plugins/datasource/tempo/resultTransformer';
-import { transformToZipkin } from 'app/plugins/datasource/zipkin/utils/transforms';
 
 import { InspectDataOptions } from './InspectDataOptions';
 import { getPanelInspectorStyles } from './styles';
-import { downloadAsJson, downloadDataFrameAsCsv, downloadLogsModelAsTxt } from './utils/download';
+import { downloadAsJson, downloadDataFrameAsCsv, downloadLogsModelAsTxt, downloadTraceAsJson } from './utils/download';
 
 interface Props {
   isLoading: boolean;
@@ -105,14 +101,16 @@ export class InspectDataTab extends PureComponent<Props, State> {
     reportInteraction('grafana_logs_download_logs_clicked', {
       app,
       format: 'logs',
+      area: 'inspector',
     });
 
-    const logsModel = dataFrameToLogsModel(data || [], undefined);
+    const logsModel = dataFrameToLogsModel(data || []);
     downloadLogsModelAsTxt(logsModel, panel ? panel.getDisplayTitle() : 'Explore');
   };
 
   exportTracesAsJson = () => {
-    const { data, panel } = this.props;
+    const { data, panel, app } = this.props;
+
     if (!data) {
       return;
     }
@@ -122,30 +120,25 @@ export class InspectDataTab extends PureComponent<Props, State> {
       if (df.meta?.preferredVisualisationType !== 'trace') {
         continue;
       }
+      const traceFormat = downloadTraceAsJson(df, (panel ? panel.getDisplayTitle() : 'Explore') + '-traces');
 
-      switch (df.meta?.custom?.traceFormat) {
-        case 'jaeger': {
-          let res = transformToJaeger(new MutableDataFrame(df));
-          downloadAsJson(res, (panel ? panel.getDisplayTitle() : 'Explore') + '-traces');
-          break;
-        }
-        case 'zipkin': {
-          let res = transformToZipkin(new MutableDataFrame(df));
-          downloadAsJson(res, (panel ? panel.getDisplayTitle() : 'Explore') + '-traces');
-          break;
-        }
-        case 'otlp':
-        default: {
-          let res = transformToOTLP(new MutableDataFrame(df));
-          downloadAsJson(res, (panel ? panel.getDisplayTitle() : 'Explore') + '-traces');
-          break;
-        }
-      }
+      reportInteraction('grafana_traces_download_traces_clicked', {
+        app,
+        grafana_version: config.buildInfo.version,
+        trace_format: traceFormat,
+        location: 'inspector',
+      });
     }
   };
 
   exportServiceGraph = () => {
-    const { data, panel } = this.props;
+    const { data, panel, app } = this.props;
+    reportInteraction('grafana_traces_download_service_graph_clicked', {
+      app,
+      grafana_version: config.buildInfo.version,
+      location: 'inspector',
+    });
+
     if (!data) {
       return;
     }

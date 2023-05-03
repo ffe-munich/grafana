@@ -141,7 +141,7 @@ describe('buildVisualQueryFromString', () => {
   });
 
   it('parses query with with unit label filter', () => {
-    expect(buildVisualQueryFromString('{app="frontend"} | bar < 8mb')).toEqual(
+    expect(buildVisualQueryFromString('{app="frontend"} | bar < 8m')).toEqual(
       noErrors({
         labels: [
           {
@@ -150,7 +150,7 @@ describe('buildVisualQueryFromString', () => {
             label: 'app',
           },
         ],
-        operations: [{ id: LokiOperationId.LabelFilter, params: ['bar', '<', '8mb'] }],
+        operations: [{ id: LokiOperationId.LabelFilter, params: ['bar', '<', '8m'] }],
       })
     );
   });
@@ -660,6 +660,27 @@ describe('buildVisualQueryFromString', () => {
         operations: [{ id: LokiOperationId.Json, params: [] }],
       })
     );
+  });
+
+  it.each(['$__interval', '5m'])('parses query range with unwrap and regex', (range) => {
+    expect(
+      buildVisualQueryFromString(
+        'avg_over_time({test="value"} |= `restart counter is at` | regexp `restart counter is at (?P<restart_counter>[0-9]+)s*.*.*?$` | unwrap restart_counter [' +
+          range +
+          '])'
+      )
+    ).toEqual({
+      errors: [],
+      query: {
+        labels: [{ label: 'test', op: '=', value: 'value' }],
+        operations: [
+          { id: '__line_contains', params: ['restart counter is at'] },
+          { id: 'regexp', params: ['restart counter is at (?P<restart_counter>[0-9]+)s*.*.*?$'] },
+          { id: 'unwrap', params: ['restart_counter', ''] },
+          { id: 'avg_over_time', params: [range] },
+        ],
+      },
+    });
   });
 });
 

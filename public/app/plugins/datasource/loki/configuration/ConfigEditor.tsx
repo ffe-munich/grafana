@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { DataSourcePluginOptionsEditorProps, DataSourceSettings } from '@grafana/data';
+import { config } from '@grafana/runtime';
 import { AlertingSettings, DataSourceHttpSettings } from '@grafana/ui';
 
 import { LokiOptions } from '../types';
@@ -35,20 +36,15 @@ export const ConfigEditor = (props: Props) => {
         dataSourceConfig={options}
         showAccessOptions={false}
         onChange={onOptionsChange}
+        secureSocksDSProxyEnabled={config.secureSocksDSProxyEnabled}
       />
 
       <AlertingSettings<LokiOptions> options={options} onOptionsChange={onOptionsChange} />
 
-      <div className="gf-form-group">
-        <div className="gf-form-inline">
-          <div className="gf-form">
-            <MaxLinesField
-              value={options.jsonData.maxLines || ''}
-              onChange={(value) => onOptionsChange(setMaxLines(options, value))}
-            />
-          </div>
-        </div>
-      </div>
+      <MaxLinesField
+        value={options.jsonData.maxLines || ''}
+        onChange={(value) => onOptionsChange(setMaxLines(options, value))}
+      />
 
       <DerivedFields
         value={options.jsonData.derivedFields}

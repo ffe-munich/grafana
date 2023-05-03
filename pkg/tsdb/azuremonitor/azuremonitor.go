@@ -35,6 +35,7 @@ func ProvideService(cfg *setting.Cfg, httpClientProvider *httpclient.Provider, t
 		azureMonitor:       &metrics.AzureMonitorDatasource{Proxy: proxy},
 		azureLogAnalytics:  &loganalytics.AzureLogAnalyticsDatasource{Proxy: proxy},
 		azureResourceGraph: &resourcegraph.AzureResourceGraphDatasource{Proxy: proxy},
+		azureTraces:        &loganalytics.AzureLogAnalyticsDatasource{Proxy: proxy},
 	}
 
 	im := datasource.NewInstanceManager(NewInstanceSettings(cfg, httpClientProvider, executors))
@@ -68,9 +69,9 @@ type Service struct {
 	tracer          tracing.Tracer
 }
 
-func getDatasourceService(cfg *setting.Cfg, clientProvider *httpclient.Provider, dsInfo types.DatasourceInfo, routeName string, httpClientOptions httpclient.Options) (types.DatasourceService, error) {
+func getDatasourceService(settings *backend.DataSourceInstanceSettings, cfg *setting.Cfg, clientProvider *httpclient.Provider, dsInfo types.DatasourceInfo, routeName string) (types.DatasourceService, error) {
 	route := dsInfo.Routes[routeName]
-	client, err := newHTTPClient(route, dsInfo, cfg, clientProvider, httpClientOptions)
+	client, err := newHTTPClient(route, dsInfo, settings, cfg, clientProvider)
 	if err != nil {
 		return types.DatasourceService{}, err
 	}
@@ -86,15 +87,10 @@ func NewInstanceSettings(cfg *setting.Cfg, clientProvider *httpclient.Provider, 
 		if err != nil {
 			return nil, fmt.Errorf("error reading settings: %w", err)
 		}
-		jsonDataObj := map[string]interface{}{}
+		jsonDataObj := map[string]any{}
 		err = json.Unmarshal(settings.JSONData, &jsonDataObj)
 		if err != nil {
 			return nil, fmt.Errorf("error reading settings: %w", err)
-		}
-
-		httpClientOpts, err := settings.HTTPClientOptions()
-		if err != nil {
-			return nil, fmt.Errorf("error getting http options: %w", err)
 		}
 
 		azMonitorSettings := types.AzureMonitorSettings{}
@@ -130,7 +126,7 @@ func NewInstanceSettings(cfg *setting.Cfg, clientProvider *httpclient.Provider, 
 		}
 
 		for routeName := range executors {
-			service, err := getDatasourceService(cfg, clientProvider, model, routeName, httpClientOpts)
+			service, err := getDatasourceService(&settings, cfg, clientProvider, model, routeName)
 			if err != nil {
 				return nil, err
 			}
@@ -181,6 +177,9 @@ func (s *Service) getDataSourceFromPluginReq(req *backend.QueryDataRequest) (typ
 		return types.DatasourceInfo{}, fmt.Errorf("unable to convert datasource from service instance")
 	}
 	dsInfo.OrgID = req.PluginContext.OrgID
+
+	dsInfo.DatasourceName = req.PluginContext.DataSourceInstanceSettings.Name
+	dsInfo.DatasourceUID = req.PluginContext.DataSourceInstanceSettings.UID
 	return dsInfo, nil
 }
 

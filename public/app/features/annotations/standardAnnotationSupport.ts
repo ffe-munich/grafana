@@ -10,6 +10,7 @@ import {
   AnnotationSupport,
   DataFrame,
   DataSourceApi,
+  DataTransformContext,
   Field,
   FieldType,
   getFieldDisplayName,
@@ -66,8 +67,12 @@ export function singleFrameFromPanelData(): OperatorFunction<DataFrame[], DataFr
           return of(data[0]);
         }
 
+        const ctx: DataTransformContext = {
+          interpolate: (v: string) => v,
+        };
+
         return of(data).pipe(
-          standardTransformers.mergeTransformer.operator({}),
+          standardTransformers.mergeTransformer.operator({}, ctx),
           map((d) => d[0])
         );
       })
@@ -218,7 +223,7 @@ export function getAnnotationsFromData(
           if (f.text) {
             v = f.text; // TODO support templates!
           } else if (f.field) {
-            v = f.field.values.get(i);
+            v = f.field.values[i];
             if (v !== undefined && f.regex) {
               const match = f.regex.exec(v);
               if (match) {
@@ -252,7 +257,6 @@ const legacyRunner = [
   'loki',
   'elasticsearch',
   'grafana-opensearch-datasource', // external
-  'grafana-splunk-datasource', // external
 ];
 
 /**

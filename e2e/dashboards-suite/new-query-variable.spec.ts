@@ -1,11 +1,13 @@
 import { e2e } from '@grafana/e2e';
 
 const PAGE_UNDER_TEST = '-Y-tnEDWk/templating-nested-template-variables';
+const DASHBOARD_NAME = 'Templating - Nested Template Variables';
 
 describe('Variables - Query - Add variable', () => {
   it('query variable should be default and default fields should be correct', () => {
     e2e.flows.login('admin', 'admin');
     e2e.flows.openDashboard({ uid: `${PAGE_UNDER_TEST}?orgId=1&editview=templating` });
+    e2e().contains(DASHBOARD_NAME).should('be.visible');
 
     e2e.pages.Dashboard.Settings.Variables.List.newButton().should('be.visible').click();
 
@@ -76,6 +78,7 @@ describe('Variables - Query - Add variable', () => {
   it('adding a single value query variable', () => {
     e2e.flows.login('admin', 'admin');
     e2e.flows.openDashboard({ uid: `${PAGE_UNDER_TEST}?orgId=1&editview=templating` });
+    e2e().contains(DASHBOARD_NAME).should('be.visible');
 
     e2e.pages.Dashboard.Settings.Variables.List.newButton().should('be.visible').click();
 
@@ -102,9 +105,7 @@ describe('Variables - Query - Add variable', () => {
 
     e2e.pages.Dashboard.Settings.Variables.Edit.General.submitButton().scrollIntoView().should('be.visible').click();
 
-    e2e().wait(1500);
-
-    e2e.components.BackButton.backArrow().should('be.visible').click({ force: true });
+    e2e.pages.Dashboard.Settings.Actions.close().click();
 
     e2e.pages.Dashboard.SubMenu.submenuItemLabels('a label').should('be.visible');
     e2e.pages.Dashboard.SubMenu.submenuItem()
@@ -112,11 +113,10 @@ describe('Variables - Query - Add variable', () => {
       .eq(3)
       .within(() => {
         e2e().get('.variable-link-wrapper').should('be.visible').click();
-        e2e().wait(500);
         e2e.pages.Dashboard.SubMenu.submenuItemValueDropDownDropDown()
           .should('be.visible')
           .within(() => {
-            e2e().get('.variable-option').should('have.length', 1);
+            e2e.components.Variables.variableOption().should('have.length', 1);
           });
 
         e2e.pages.Dashboard.SubMenu.submenuItemValueDropDownOptionTexts('C').should('be.visible');
@@ -126,6 +126,7 @@ describe('Variables - Query - Add variable', () => {
   it('adding a multi value query variable', () => {
     e2e.flows.login('admin', 'admin');
     e2e.flows.openDashboard({ uid: `${PAGE_UNDER_TEST}?orgId=1&editview=templating` });
+    e2e().contains(DASHBOARD_NAME).should('be.visible');
 
     e2e.pages.Dashboard.Settings.Variables.List.newButton().should('be.visible').click();
 
@@ -169,9 +170,7 @@ describe('Variables - Query - Add variable', () => {
 
     e2e.pages.Dashboard.Settings.Variables.Edit.General.submitButton().scrollIntoView().should('be.visible').click();
 
-    e2e().wait(500);
-
-    e2e.components.BackButton.backArrow().should('be.visible').click({ force: true });
+    e2e.pages.Dashboard.Settings.Actions.close().click();
 
     e2e.pages.Dashboard.SubMenu.submenuItemLabels('a label').should('be.visible');
     e2e.pages.Dashboard.SubMenu.submenuItem()
@@ -179,11 +178,10 @@ describe('Variables - Query - Add variable', () => {
       .eq(3)
       .within(() => {
         e2e().get('.variable-link-wrapper').should('be.visible').click();
-        e2e().wait(500);
         e2e.pages.Dashboard.SubMenu.submenuItemValueDropDownDropDown()
           .should('be.visible')
           .within(() => {
-            e2e().get('.variable-option').should('have.length', 2);
+            e2e.components.Variables.variableOption().should('have.length', 2);
           });
 
         e2e.pages.Dashboard.SubMenu.submenuItemValueDropDownOptionTexts('All').should('be.visible');
